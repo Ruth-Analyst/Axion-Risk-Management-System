@@ -5,8 +5,14 @@ AXION es una plataforma financiera desarrollada en **Django** diseñada para ges
 
 AXION-Plataforma
 ![AXION-Plataforma](AXION-Plataforma.png)
+
+AXION-Gestion de Solicitudes
 ![AXION-GestionSoliictudes](AXION-GestionSoliictudes.png)
+
+AXION-DashBoard de Evaluación de aprobación de Factoring.
 ![AXION-DashBoardEvaluacion](AXION-DashBoardEvaluacion.png)
+
+AXION-Mensaje de alerta del Sistema de evaluación de Factoring.
 ![AXION-Mensaje](AXION-Mensaje.png)
 
 
