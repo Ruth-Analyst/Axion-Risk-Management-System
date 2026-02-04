@@ -61,3 +61,10 @@ Este proyecto demuestra la capacidad de integrar aplicaciones web modernas con b
     ```
 
 
+Sobre la Autora: Ingeniera Industrial y Datos
+Ingeniera con un enfoque sólido en la optimización de procesos y el diseño de sistemas de soporte para la toma de decisiones.
+Este proyecto nace de la necesidad de digitalizar y robustecer la evaluación de riesgos en el sector de Factoring. Mi objetivo fue crear una arquitectura que no solo procese datos, sino que aplique reglas de negocio complejas de forma automatizada y segura.
+www.linkedin.com/in/ruth-travezaño-557316257
+
+
+
