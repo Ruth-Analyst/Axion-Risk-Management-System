@@ -3,6 +3,14 @@
 ##  Descripción del Proyecto
 AXION es una plataforma financiera desarrollada en **Django** diseñada para gestionar el ciclo de vida de **Factoring sin Recurso**. El sistema permite a los analistas de riesgo evaluar solicitudes de adelanto de facturas mediante un algoritmo de scoring dinámico y ejecutar decisiones que impactan directamente en el Core Bancario (simulado en Oracle DB).
 
+AXION-Plataforma
+![AXION-Plataforma](AXION-Plataforma.png)
+![AXION-GestionSoliictudes](AXION-GestionSoliictudes.png)
+![AXION-DashBoardEvaluacion](AXION-DashBoardEvaluacion.png)
+![AXION-Mensaje](AXION-Mensaje.png)
+
+
+
 Este proyecto demuestra la capacidad de integrar aplicaciones web modernas con bases de datos relacionales robustas y lógica de negocio compleja (PL/SQL).
 
 ##  Características Principales
