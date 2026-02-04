@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard de Valoración AXION | Solicitud {{ solicitud_id }}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'estilos/estilos.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { max-width: 900px; margin: 30px auto; padding: 20px; border: 1px solid #ccc; border-radius: 10px; }
+        .risk-panel { display: flex; justify-content: space-around; margin: 20px 0; }
+        .metric-group { background-color: #f8f9fa; padding: 15px; border-radius: 8px; flex: 1; margin: 0 10px; }
+        .alert-box { padding: 10px; margin: 10px 0; border-radius: 5px; font-weight: bold; }
+        .alert-critical { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .alert-ok { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .gauge-container { width: 250px; margin: 0 auto; }
+        .decision-btn { padding: 15px 30px; border: none; font-size: 1.2em; cursor: pointer; border-radius: 5px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dashboard de Decisión de Factoring (AXION)</h1>
+        <a href="{% url 'listado_solicitudes' %}" class="btn">← Volver al Listado</a>
+        <hr>
+
+        <h2>Solicitud #{{ solicitud_id }} - {{ datos.empresa.razon_social }}</h2>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <div class="gauge-container">
+                <canvas id="gaugeChart"></canvas>
+            </div>
+            <h3>SCORE DE APROBACION: <span id="score_display" style="font-size: 2em; color: #007bff;">{{ datos.score_inicial }}%</span></h3>
+            <div id="mensaje_final" class="alert-box"></div>
+        </div>
+        <hr>
+
+        <form id="riskForm">
+            <input type="hidden" id="solicitud_id" value="{{ solicitud_id }}">
+            <input type="hidden" id="initial_rating_deudor" value="{{ datos.deudor.rating }}">
+            <input type="hidden" id="initial_dpp" value="{{ datos.deudor.dias_pago_promedio }}">
+            <input type="hidden" id="initial_rating_empresa" value="{{ datos.empresa.rating_empresa }}">
+            <input type="hidden" id="initial_incidencias" value="{{ datos.empresa.incidencias_historicas }}">
+
+            <div class="risk-panel">
+
+                <div class="metric-group">
+                    <h3>RIESGO DEUDOR</h3>
+                    <p>Métricas de Solvencia (Rating Crediticio y DPP).</p>
+
+                    <label for="rating_deudor">Rating Crediticio:</label>
+                    <select id="rating_deudor" onchange="calcularScore()">
+                        <option value="Alto">Alto (A+/A)</option>
+                        <option value="Medio" {% if datos.deudor.rating == "B" %}selected{% endif %}>Medio (B)</option>
+                        <option value="Bajo" {% if datos.deudor.rating in "CD" %}selected{% endif %}>Bajo (C/D)</option>
+                    </select>
+
+
+                    <label for="dpp">DPP (Días Promedio de Pago):</label>
+                    <input type="number" id="dpp" value="{{ datos.deudor.dias_pago_promedio }}" onkeyup="calcularScore()" onchange="calcularScore()">
+
+                </div>
+
+                <div class="metric-group">
+                    <h3>RIESGO CLIENTE</h3>
+                    <p>Métricas de Contraparte (Capacidad de Aval e Incidencias).</p>
+
+                    <label for="rating_empresa">Rating Financiero:</label>
+                    <select id="rating_empresa" onchange="calcularScore()">
+                        <option value="Alto" {% if datos.empresa.rating_empresa in "A+A" %}selected{% endif %}>Alto (A+/A)</option>
+                        <option value="Medio" {% if datos.empresa.rating_empresa == "B" %}selected{% endif %}>Medio (B)</option>
+                        <option value="Bajo" {% if datos.empresa.rating_empresa in "CD" %}selected{% endif %}>Bajo (C/D)</option>
+                    </select>
+
+
+                    <label for="incidencias">Incidencias Históricas:</label>
+                    <input type="number" id="incidencias" value="{{ datos.empresa.incidencias_historicas }}" onkeyup="calcularScore()" onchange="calcularScore()">
+                </div>
+            </div>
+
+            <div class="alert-box alert-critical" style="margin-top: 20px;">
+                ⚠️ **Exposición:** {{ datos.empresa.razon_social }} tiene un límite de {{ datos.empresa.limite_credito|floatformat:2 }}€.
+                La aprobación usaría el **{{ datos.empresa.porcentaje_comprometido }}%** de su límite.
+            </div>
+
+        </form>
+
+        <hr>
+
+        <h2 style="text-align: center;">Decisión y Reporte Final</h2>
+        <form method="post" action="{% url 'procesar_solicitud' solicitud_id=solicitud_id %}" style="text-align: center;">
+            {% csrf_token %}
+            <input type="hidden" name="decision" id="decision_final">
+
+            <button type="submit" onclick="return tomarDecision('APROBAR')" class="decision-btn" style="background-color: green; color: white;">
+                ✅ APROBAR
+            </button>
+
+            <button type="submit" onclick="return tomarDecision('RECHAZAR')" class="decision-btn" style="background-color: red; color: white;">
+                ❌ RECHAZAR
+            </button>
+        </form>
+
+    </div>
+
+    <script>
+        // Mapeo de Puntuación (Score)
+        const RIESGO_MAP = {
+            rating: { 'Alto': 50, 'Medio': 30, 'Bajo': 0 },
+            dpp: (dpp) => {
+                if (dpp <= 10) return 50;
+                if (dpp <= 30) return 30;
+                return 0;
+            },
+            incidencias: (incidencias) => {
+                if (incidencias === 0) return 50;
+                if (incidencias <= 10) return 30;
+                return 0;
+            }
+        };
+
+        const MAX_SCORE = 200; // 4 métricas * 50% max = 200
+        const UMBRAL_APROBACION = 100; // 50% del score total (100 puntos)
+
+        let gaugeChart = null; // Variable global para la instancia del gráfico
+
+        // ====================================================================
+        // CÁLCULO
+        // ====================================================================
+
+        function calcularScore() {
+            let scoreTotal = 0;
+
+            // 1. RIESGO DEUDOR (Juanito)
+            const ratingDeudor = document.getElementById('rating_deudor').value;
+            const dppValue = parseInt(document.getElementById('dpp').value) || 0;
+
+            scoreTotal += RIESGO_MAP.rating[ratingDeudor] || 0;
+            scoreTotal += RIESGO_MAP.dpp(dppValue);
+
+            // 2. RIESGO CLIENTE (Pepito)
+            const ratingEmpresa = document.getElementById('rating_empresa').value;
+            const incidenciasValue = parseInt(document.getElementById('incidencias').value) || 0;
+
+            scoreTotal += RIESGO_MAP.rating[ratingEmpresa] || 0;
+            scoreTotal += RIESGO_MAP.incidencias(incidenciasValue);
+
+            const scorePorcentaje = Math.round((scoreTotal / MAX_SCORE) * 100);
+
+            // Actualizar Dashboard
+            document.getElementById('score_display').textContent = scorePorcentaje + '%';
+            actualizarGauge(scoreTotal); // Usamos el score total (puntos)
+            actualizarMensaje(scoreTotal);
+        }
+
+        // ====================================================================
+        // FUNCIÓN DE GRÁFICO RELOJ (Piloto)
+        // ====================================================================
+
+        function actualizarGauge(scorePuntos) {
+            const ctx = document.getElementById('gaugeChart').getContext('2d');
+            const data = {
+                labels: ['Aprobado', 'Rechazado/Riesgo', 'Oculto'],
+                datasets: [{
+                    data: [scorePuntos, MAX_SCORE - scorePuntos, MAX_SCORE], // Puntos obtenidos, Puntos faltantes, Base (para ocultar la mitad)
+                    backgroundColor: [
+                        '#28a745', // Verde (Aprobado)
+                        '#dc3545', // Rojo (Rechazado/Riesgo)
+                        'rgba(0, 0, 0, 0)' // Transparente (Oculto)
+                    ],
+                    borderWidth: 0
+                }]
+            };
+
+            const options = {
+                responsive: true,
+                maintainAspectRatio: true,
+                rotation: 1 * Math.PI, // Rotar 180 grados
+                circumference: 1 * Math.PI, // Mostrar solo 180 grados (media rosca)
+                tooltips: {
+                    enabled: false
+                },
+                legend: {
+                    display: false
+                },
+            };
+
+            if (gaugeChart) {
+                //
+                gaugeChart.data.datasets[0].data = [scorePuntos, MAX_SCORE - scorePuntos, MAX_SCORE];
+                gaugeChart.update();
+            } else {
+                // Si no existe, crea uno nuevo
+                gaugeChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: data,
+                    options: options
+                });
+            }
+        }
+
+        // ====================================================================
+        // FUNCIÓN DE MENSAJE
+        // ====================================================================
+
+        function actualizarMensaje(score) {
+            const mensajeDiv = document.getElementById('mensaje_final');
+
+            if (score >= UMBRAL_APROBACION) {
+                // Aprobado (50% a más)
+                mensajeDiv.className = 'alert-box alert-ok';
+                mensajeDiv.innerHTML = "✅ **Decisión Sugerida:** APROBAR. El Score está en zona de bajo riesgo.";
+            } else {
+                // Analista Rechazado (de 0 a 49%)
+                mensajeDiv.className = 'alert-box alert-critical';
+                mensajeDiv.innerHTML = "❌ **Decisión Sugerida:** RECHAZAR. El Score está en zona de alto riesgo. Se recomienda revisión.";
+            }
+        }
+
+        function tomarDecision(decision) {
+            const score = parseInt(document.getElementById('score_display').textContent);
+            document.getElementById('decision_final').value = decision;
+
+            if (decision === 'APROBAR') {
+                if (score >= UMBRAL_APROBACION) {
+                    alert("🎉 ¡Felicidades! El Factoring ha sido aprobado.");
+                } else {
+                    alert("⚠️ Advertencia: Está APROBANDO una solicitud con riesgo Alto. Se requiere validación superior.");
+                }
+            } else { // RECHAZAR
+                if (score < UMBRAL_APROBACION) {
+                     alert("😔 Lo sentimos, el Factoring ha sido rechazado.");
+                } else {
+                    alert("⚠️ Advertencia: Está RECHAZANDO una solicitud de bajo riesgo. Se requiere justificación.");
+                }
+            }
+            return true;
+        }
+
+        // Iniciar cálculo
+        document.addEventListener('DOMContentLoaded', function() {
+            // Inicializar los selects con los valores de la base de datos
+            document.getElementById('rating_deudor').value = document.getElementById('initial_rating_deudor').value === 'B' ? 'Medio' : (document.getElementById('initial_rating_deudor').value === 'A' || document.getElementById('initial_rating_deudor').value === 'A+' ? 'Alto' : 'Bajo');
+            document.getElementById('rating_empresa').value = document.getElementById('initial_rating_empresa').value === 'B' ? 'Medio' : (document.getElementById('initial_rating_empresa').value === 'A' || document.getElementById('initial_rating_empresa').value === 'A+' ? 'Alto' : 'Bajo');
+
+            calcularScore();
+        });
+    </script>
+</body>
+</html>
